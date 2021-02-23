@@ -1,7 +1,7 @@
 from django.db import models
 
-from db.account.models import Address, Customer
-from db.core.models import BaseModel, User
+from db.account.models import Address, User
+from db.core.models import BaseModel
 from db.payment.models import Account, Payment
 from db.product.models import Product, ProductService, QualityData
 from db.warehouse.models import WarehouseStorage
@@ -14,22 +14,21 @@ class Invoice(BaseModel):
         'account.Translation', 
         related_name="invoices"
     )
-    url = models.CharField(max_length=256)
+    url = models.FileField(upload_to="invoice")
     date = models.DateField(auto_now=True)
-    num = models.IntegerField()
+    num = models.IntegerField(default=0)
 
 
 class PurchaseOrder(BaseModel):
-    #serialized_products - serializer
-    seller = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True)
+    seller = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="sellers")
     translations = models.ManyToManyField(
         'account.Translation', 
         related_name="purchase_orders"
     )
-    creditor = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True)
-    user_owner = models.ForeignKey(User, on_delete=models.CASCADE)
-    invoice = models.ForeignKey(Invoice, on_delete=models.SET_NULL, null=True)
-    payment = models.ForeignKey(Payment, on_delete=models.CASCADE)
+    creditor = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, related_name="purchase_orders")
+    user_owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, related_name="purchase_orders")
+    invoices = models.ManyToManyField(Invoice, blank=True, related_name="purchase_orders")
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, null=True, related_name="purchase_orders")
 
     uid = models.CharField(max_length=64)
     order_date = models.DateField(auto_now=True)
@@ -53,11 +52,11 @@ class SalesOrder(BaseModel):
         'account.Translation', 
         related_name="sales_orders"
     )  
-    buyer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True)
-    debitor = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True)
-    invoice = models.ForeignKey(Invoice, on_delete=models.SET_NULL, null=True)
-    user_owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True)
+    buyer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="buyers")
+    debitor = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, related_name="sale_orders")
+    invoices = models.ManyToManyField(Invoice, blank=True, related_name="sale_orders")
+    user_owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="sale_orders")
+    payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True, related_name="sale_orders")
     services = models.ManyToManyField(ProductService, related_name="sale_orders")
 
     # serialized - serializer
@@ -82,22 +81,29 @@ class SalesOrder(BaseModel):
     def __str__(self):
         return f"Sales order #{self.uid}"
 
+
+class Tax(models.Model):
+    tax_title = models.CharField(max_length=128)
+    tax_description = models.TextField(null=True)
+    tax_rate = models.DecimalField(max_digits=7, decimal_places=4, default=0, null=True)
+
+
 class ProductUnit(BaseModel):
     product = models.ForeignKey(Product, related_name="items", on_delete=models.CASCADE)
     translations = models.ManyToManyField('account.Translation', related_name="serialized")
-    purchase_order = models.ForeignKey(PurchaseOrder, related_name="serialized", on_delete=models.CASCADE)  
-    sell_order = models.ForeignKey(SalesOrder, related_name="items", on_delete=models.SET_NULL, null=True)
-    unit = models.ForeignKey(WarehouseStorage, related_name="prducts", on_delete=models.CASCADE)
-    exp = models.ForeignKey(QualityData, related_name="serialized", on_delete=models.SET_NULL, null=True)
-    user_owner = models.ForeignKey(User, related_name="zerialized", on_delete=models.SET_NULL, null=True)
-
+    purchase_order = models.ForeignKey(PurchaseOrder, related_name="serialized_products", on_delete=models.CASCADE, null=True)  
+    sell_order = models.ForeignKey(SalesOrder, related_name="serialized_products", on_delete=models.SET_NULL, null=True)
+    unit = models.ForeignKey(WarehouseStorage, related_name="products", on_delete=models.CASCADE, null=True)
+    user_owner = models.ForeignKey(User, related_name="serialized", on_delete=models.SET_NULL, null=True)
+    exp = models.ForeignKey(QualityData, on_delete=models.SET_NULL, null=True, blank=True)
+    vat = models.ForeignKey(Tax, on_delete=models.SET_NULL, null=True)
+    invoice_template = models.TextField(null=True) #make fk later
     enabled = models.BooleanField(default=True)
-    #num_items - serializer
+    serial_num = models.CharField(max_length=128, unique=True, default="")
     stock = models.DecimalField(max_digits=7, decimal_places=2)
     status = models.CharField(max_length=64)
     selling_price = models.DecimalField(max_digits=7, decimal_places=2)
     purchase_price = models.DecimalField(max_digits=7, decimal_places=2)
-    vat = models.CharField(max_length=64)
     manufacturers_serial = models.CharField(max_length=128)
 
     def __str__(self):

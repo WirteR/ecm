@@ -1,14 +1,14 @@
 from django.db import models
 from mptt.models import MPTTModel, TreeForeignKey
 
-from db.account.models import Translation
-from db.core.models import BaseModel, User
+from db.account.models import Translation, User
+from db.core.models import BaseModel
 from db.payment.models import Account
 # Create your models here.
 
 
 class ProductCategory(MPTTModel):
-    translations = models.ManyToManyField(Translation, related_name="categories")
+    translations = models.ManyToManyField(Translation, related_name="categories", blank=True)
 
     key = models.CharField(max_length=125, null=True, blank=True)
     uid = models.CharField(max_length=125, null=True, blank=True)
@@ -16,14 +16,14 @@ class ProductCategory(MPTTModel):
     name = models.CharField(max_length=256)
     description = models.TextField()
     parent = TreeForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children')
-    user_owner = models.ForeignKey(User, on_delete=models.CASCADE)
+    user_owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
 
     created_at = models.DateTimeField(auto_now=True)
     updated_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.uid} | {self.name}" 
-
+        
 
 class ProductAttribute(BaseModel):
     user_owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
@@ -31,7 +31,7 @@ class ProductAttribute(BaseModel):
     
     name = models.CharField(max_length=128)
     description = models.TextField()
-    terms = models.TextField()
+    terms = models.TextField(null=True, blank=True)
     user_owner = models.ForeignKey(User, related_name="attribute", on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
@@ -43,35 +43,67 @@ class ProductTag(models.Model):
     translations = models.ManyToManyField(Translation, related_name="tags")
     
     name = models.CharField(max_length=128)
-    description = models.TextField()
+    description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
 
 
+class ProductImage(BaseModel):
+    image = models.ImageField(upload_to="product-images")
+
+
 class QualityData(BaseModel):
     condition = models.CharField(max_length=128)
     quality_text = models.CharField(max_length=128)
-    quality_description = models.TextField()
+    quality_description = models.TextField(blank=True, null=True)
+    images = models.ManyToManyField(ProductImage, related_name="quality", blank=True)
 
     def __str__(self):
         return self.condition
+    
+    @property
+    def images_list(self):
+        images_qs = self.images.all() 
+        images_list = [default_storage.url(str(obj.image)) for obj in images_qs]
+        return images_list
 
 
-class QualityImage(BaseModel):
-    exp = models.ForeignKey(QualityData, related_name="quality_images", on_delete=models.CASCADE)
-    quality_image = models.ImageField(upload_to="product-images")
+class ProductData(models.Model):
+    brand = models.CharField(max_length=125, null=True, blank=True)
+    designer = models.CharField(max_length=125, null=True, blank=True)
+    manufacturer = models.CharField(max_length=125, null=True, blank=True)
+    bullet_point = models.CharField(max_length=10, null=True, blank=True)
+    merchant_catalog_number = models.CharField(max_length=25, null=True, blank=True)
+    serial_number_req = models.CharField(max_length=125, null=True, blank=True)
+    legal_disclamer = models.TextField(null=True, blank=True)
+    mfr_part_number = models.CharField(max_length=25, null=True, blank=True)
+    search_terms = models.TextField(null=True, blank=True)
+    platinum_keywords = models.TextField(null=True, blank=True)
+    browse_node = models.CharField(max_length=126, null=True, blank=True)
+    memorabilia = models.CharField(max_length=126, null=True, blank=True)
+    autographed = models.BooleanField(default=False, null=True, blank=True)
+    other_item_attributes = models.CharField(max_length=256, null=True, blank=True)
+    target_audience = models.CharField(max_length=125, null=True, blank=True)
+    subject_content = models.TextField(null=True, blank=True)
+    TSD_age_warning = models.CharField(max_length=24, null=True, blank=True)
+    TSD_warning = models.CharField(max_length=128, null=True, blank=True)	
+    TSD_language = models.CharField(max_length=24, null=True, blank=True)
+    product_data = models.CharField(max_length=512, null=True, blank=True)    
+    variation = models.CharField(max_length=128, null=True, blank=True)
+    exp = models.CharField(max_length=128, null=True, blank=True)
 
 
 class Product(BaseModel):
-    #alternative_images - serializer
-    attributes = models.ManyToManyField(ProductAttribute, related_name="products", blank=True)
+    attributes = models.JSONField(null=True, blank=True)
     category = models.ForeignKey(ProductCategory, related_name="products", on_delete=models.SET_NULL, null=True)
     translations = models.ManyToManyField(Translation, related_name="products")
     tags = models.ManyToManyField(ProductTag, related_name="products", blank=True)
     user_owner = models.ForeignKey(User, related_name="products", on_delete=models.SET_NULL, null=True)
-    quality_data = models.ForeignKey(QualityData, related_name="products", on_delete=models.SET_NULL, null=True)
+    exp = models.ManyToManyField(QualityData, related_name="products", blank=True)
+    extra_data = models.OneToOneField(ProductData, on_delete=models.SET_NULL, null=True)
+    alternate_images = models.ManyToManyField(ProductImage, related_name="products", blank=True)
 
     standart_price = models.DecimalField(max_digits=7, decimal_places=2)
     title = models.CharField(max_length=125)
@@ -79,21 +111,12 @@ class Product(BaseModel):
     type = models.CharField(max_length=125, null=True)
     sku = models.CharField(max_length=125)
     marketplace_sku = models.CharField(max_length=125)
+    serialized = models.BooleanField(default=False)
 
     main_image = models.ImageField(upload_to="product-images")
-    extra_data = models.JSONField()
-
-    @property
-    def serialized(self):
-        pass
 
     def __str__(self):
         return f"{self.sku} | {self.title}"
-
-
-class ProductImage(BaseModel):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    image = models.ImageField(upload_to="product-images")
 
 
 class ProductService(BaseModel):
@@ -109,27 +132,3 @@ class ProductService(BaseModel):
     def __str__(self):
         return self.name
     
-
-# class ProductData(models.Model):
-#     brand = models.CharField(max_length=125)
-#     designer = models.CharField(max_length=125)
-#     manufacturer = models.CharField(max_length=125, null=True, blank=True)
-#     bullet_point = models.CharField(max_length=10)
-#     merchant_catalog_number = models.CharField(max_length=25)
-#     serial_number_req = models.CharField(125)
-#     legal_disclamer = models.TextField()
-#     mfr_part_number = models.CharField(max_length=25)
-#     search_terms = models.TextField()
-#     platinum_keywords = models.TextField()
-#     browse_node = models.CharField(126)
-#     memorabilia = models.CharField(126)
-#     autographed = models.BooleanField(default=False)
-#     other_item_attributes = models.CharField(max_length=256)
-#     target_audience = models.CharField(max_length=125)
-#     subject_content = models.TextField()
-#     TSD_age_warning = models.CharField(max_length=24)
-#     TSD_warning = models.CharField(max_length=128)	
-#     TSD_language = models.CharField(max_length=24)
-#     product_data = models.CharField(max_length=512)    
-#     variation = models.CharField(max_length=128)
-#     exp = models.CharField(max_length=128)

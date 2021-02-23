@@ -25,7 +25,7 @@ class WarehouseStorage(BaseModel):
     warehouse = models.ForeignKey(Warehouse, related_name="units", on_delete=models.CASCADE)
     code = models.CharField(max_length=128)
     name = models.CharField(max_length=128)
-    unit_id = models.CharField(max_length=128)
+    unit_id = models.CharField(max_length=128, unique=True)
 
     def __str__(self):
         return f"{self.unit_id} | {self.name}"

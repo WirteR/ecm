@@ -1,17 +1,8 @@
 from django.db import models
 
-from db.account.models import Address, Translation
-from db.core.models import BaseModel, User
+from db.account.models import Address, Translation, User
+from db.core.models import BaseModel
 from db.payment.models import Account, Payment
-
-class ExpenseSupplier(BaseModel):
-    address = models.ForeignKey(Address, related_name="supplier", on_delete=models.SET_NULL, null=True)
-    account = models.ForeignKey(Account, related_name="supplier", on_delete=models.SET_NULL, null=True)
-    company_name = models.CharField(max_length=128)
-    supplier = models.OneToOneField(User, related_name="supplier", on_delete=models.SET_NULL, null=True)
-
-    def __str__(self):
-        return self.supplier.name
 
 
 class ExpenseFile(models.Model):
@@ -24,6 +15,16 @@ class ExpenseFile(models.Model):
         return self.sku
 
 
+class ExpenseSupplier(BaseModel):
+    address = models.ForeignKey(Address, related_name="supplier", on_delete=models.SET_NULL, null=True)
+    account = models.ForeignKey(Account, related_name="supplier", on_delete=models.SET_NULL, null=True)
+    company_name = models.CharField(max_length=128)
+    supplier = models.OneToOneField(User, related_name="supplier", on_delete=models.SET_NULL, null=True)
+
+    def __str__(self):
+        return self.supplier.name 
+
+
 class ExpenseCategory(BaseModel):
     translations = models.ManyToManyField(
         Translation, 
@@ -34,6 +35,7 @@ class ExpenseCategory(BaseModel):
 
     def __str__(self):
         return self.name
+
 
 class Expense(BaseModel):
     translations = models.ManyToManyField(
@@ -54,6 +56,7 @@ class Expense(BaseModel):
 
     def __str__(self):
         return self.uid
+
 
 class ExpenseItem(BaseModel):
     translations = models.ManyToManyField(

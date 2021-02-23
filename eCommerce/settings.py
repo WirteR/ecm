@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     #3-party
     'mptt',
     "rest_framework",
+    "rest_framework.authtoken",
     'django_extensions'
 ]
 
@@ -88,6 +89,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'eCommerce.wsgi.application'
 
+
 DEFAULT_DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
@@ -99,6 +101,7 @@ DEFAULT_DATABASES = {
         'PASSWORD': 'root',
         'HOST': 'localhost',
         'PORT': '5432',
+        'SCHEMA_NAME': 'general_schema',
     },
 
     "core": {
@@ -111,18 +114,8 @@ DEFAULT_DATABASES = {
         'PASSWORD': 'root',
         'HOST': 'localhost',
         'PORT': '5432',
+        'SCHEMA_NAME': 'core_schema',
     },
-    "ts": {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'OPTIONS': {
-            'options': '-c search_path=ts_schema'
-        },
-        'NAME': 'pysonet',
-        'USER': 'postgres',
-        'PASSWORD': 'root',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
 }
 
 DB_CONFIG_FILE = "db_conf.json"
@@ -185,11 +178,14 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-AUTH_USER_MODEL = "core.User" 
+AUTH_USER_MODEL = "account.User" 
 
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.BasicAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend'
     ]
 }
-
