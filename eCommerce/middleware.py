@@ -1,13 +1,37 @@
 from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
 import threading
+from django.contrib.auth.models import AnonymousUser
+from db.core.models import Tenant
+from db.db_utils import set_tenant_for_request
 
 request_cfg = threading.local()
 
 
+# class TokenAuthenticationMiddleware(object):
+#     def process_request(self, request):
+#         auth_token = request.META.get("HTTP_AUTHORIZATION", None)
+#         if auth_token:
+            
+
 class DatabaseMiddleware(MiddlewareMixin):
     def process_request(self, request):
-        request_cfg.context_instance = "default"
+        tenant_id = None
+        # import pdb; pdb.set_trace()
+        if not request.user.is_anonymous:
+            tenant_id = request.user.tenant_id
+
+        if tid := request.META.get("HTTP_TENANT_ID"):
+            tenant_id = tid
+        
+        if tenant_id != None:
+            request_cfg.context_instance = "generic"
+            request.tenant_id = tenant_id
+            set_tenant_for_request(tenant_id)
+        else:
+            request_cfg.context_instance = "default"
+            
+
 
     def process_response(self, request, response):
         if hasattr(request_cfg, "context_instance"):
@@ -16,17 +40,16 @@ class DatabaseMiddleware(MiddlewareMixin):
 
 
 class SubdomainRouter:
-    route_app_labels = set(
-        ["core"] + [x.split('.')[-1] for x in settings.INSTALLED_APPS if x.startswith("django")]
-    )
+    route_app_labels = {"core"}
     db_list = list(settings.DATABASES.keys())
 
     def _default_db(self, model):
+        db_name = getattr(request_cfg, "context_instance", None)
+
         if model._meta.app_label in self.route_app_labels:
             return settings.CORE_DB_NAME
         
-        db_name = getattr(request_cfg, "context_instance", None)
-        if db_name is None:
+        if db_name is None or db_name == "generic":
             return None
         return db_name
 

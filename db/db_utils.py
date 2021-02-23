@@ -48,6 +48,7 @@ def create_tenant_schema(company_name):
     tenant_db = {
         schema_name: dict(
             OPTIONS={'options': f"-c search_path={final_schema_name}"},
+            SCHEMA_NAME=final_schema_name,
             **db_settings
         )
     }
@@ -64,3 +65,8 @@ def create_tenant_schema(company_name):
     return tenant
 
 
+def set_tenant_for_request(tenant_id):
+    tenant = Tenant.objects.get(id=tenant_id)
+    schema_name = tenant.db_conf[tenant.db_name]['SCHEMA_NAME']
+    with connection.cursor() as cursor:
+        cursor.execute(f"SET search_path to {schema_name}")
