@@ -6,10 +6,10 @@ from . import serializers as order_serializers
 from db.core.views import BaseModelsViewset
 # Create your views here.
 
-class Invoice(ModelViewSet):
+class InvoiceViewSet(ModelViewSet):
     model_class = order_models.Invoice
     queryset = model_class.objects.all()
-    serializer_class = order_serializers.InvoiceSerializer
+    serializer_class = order_serializers.PurchaseInvoiceSerializer
     
 
 class SerializedViewSet(BaseModelsViewset):
@@ -28,7 +28,7 @@ class PurchaseViewSet(BaseModelsViewset):
         return qs
 
 
-class SalesOrder(BaseModelsViewset):
+class SalesOrderViewSet(BaseModelsViewset):
     model_class = order_models.SalesOrder
     queryset = model_class.objects.all()
     serializer_class = order_serializers.SellingOrderSerializer

@@ -12,11 +12,13 @@ from db.warehouse.models import WarehouseStorage
 class Invoice(BaseModel):
     translations = models.ManyToManyField(
         'account.Translation', 
-        related_name="invoices"
+        related_name="invoices",
+        null=True,
+        blank=True
     )
     url = models.FileField(upload_to="invoice")
     date = models.DateField(auto_now=True)
-    num = models.IntegerField(default=0)
+    num = models.CharField(max_length=128, unique=True)
 
 
 class PurchaseOrder(BaseModel):
@@ -50,32 +52,34 @@ class PurchaseOrder(BaseModel):
 class SalesOrder(BaseModel):  
     translations = models.ManyToManyField(
         'account.Translation', 
-        related_name="sales_orders"
+        related_name="sales_orders",
+        blank=True
     )  
     buyer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="buyers")
     debitor = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, related_name="sale_orders")
-    invoices = models.ManyToManyField(Invoice, blank=True, related_name="sale_orders")
+    invoice = models.ForeignKey(Invoice, on_delete=models.SET_NULL, null=True, related_name="sale_orders")
     user_owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="sale_orders")
     payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True, related_name="sale_orders")
-    services = models.ManyToManyField(ProductService, related_name="sale_orders")
+    services = models.ManyToManyField(ProductService, related_name="sale_orders", blank=True)
 
     # serialized - serializer
 
-    key = models.CharField(max_length=64)
+    key = models.CharField(max_length=64, null=True)
     uid = models.CharField(max_length=64)
     note = models.TextField()
-    cancellation = models.CharField(max_length=256)
+    cancellation = models.CharField(max_length=256, null=True)
     order_date = models.DateField(auto_now=True)
     total_price = models.DecimalField(max_digits=7, decimal_places=2)
-    marketplace_price = models.DecimalField(max_digits=7, decimal_places=2)
-    shipping_price = models.DecimalField(max_digits=7, decimal_places=2)
-    marketplace = models.CharField(max_length=128)
-    tracking_code = models.CharField(max_length=256)
-    shipment_service = models.CharField(max_length=128)
-    shipment_label = models.CharField(max_length=64)
+    marketplace_price = models.DecimalField(max_digits=7, decimal_places=2, default=0, null=True)
+    shipping_price = models.DecimalField(max_digits=7, decimal_places=2, null=True)
+    marketplace = models.CharField(max_length=128, null=True)
+    tracking_code = models.CharField(max_length=256, null=True)
+    shipment_service = models.CharField(max_length=128, null=True)
+    shipment_label = models.CharField(max_length=64, null=True)
+    shipment_status = models.CharField(max_length=64, null=True)
     enabled = models.BooleanField(default=True)
     status = models.CharField(max_length=64)
-    bookkeeping_status = models.CharField(max_length=64)
+    bookkeeping_status = models.CharField(max_length=64, null=True)
     is_locked = models.BooleanField(default=False)
 
     def __str__(self):
