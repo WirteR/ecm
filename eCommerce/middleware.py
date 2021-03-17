@@ -6,20 +6,11 @@ from db.core.models import Tenant
 from db.db_utils import set_tenant_for_request
 
 request_cfg = threading.local()
-
-
-# class TokenAuthenticationMiddleware(object):
-#     def process_request(self, request):
-#         auth_token = request.META.get("HTTP_AUTHORIZATION", None)
-#         if auth_token:
-            
+         
 
 class DatabaseMiddleware(MiddlewareMixin):
     def process_request(self, request):
         tenant_id = None
-        # import pdb; pdb.set_trace()
-        if not request.user.is_anonymous:
-            tenant_id = request.user.tenant_id
 
         if tid := request.META.get("HTTP_TENANT_ID"):
             tenant_id = tid
@@ -30,8 +21,6 @@ class DatabaseMiddleware(MiddlewareMixin):
             set_tenant_for_request(tenant_id)
         else:
             request_cfg.context_instance = "default"
-            
-
 
     def process_response(self, request, response):
         if hasattr(request_cfg, "context_instance"):
@@ -40,7 +29,7 @@ class DatabaseMiddleware(MiddlewareMixin):
 
 
 class SubdomainRouter:
-    route_app_labels = {"core"}
+    route_app_labels = {"core", "settings"}
     db_list = list(settings.DATABASES.keys())
 
     def _default_db(self, model):

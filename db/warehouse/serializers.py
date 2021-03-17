@@ -1,5 +1,6 @@
-from db.core.serializers import BaseTranslateSerializer
+from db.helper_serializers import BaseTranslateSerializer
 from .models import Warehouse, WarehouseStorage
+
 
 class UnitSerializer(BaseTranslateSerializer):
 

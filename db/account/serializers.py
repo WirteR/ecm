@@ -1,107 +1,110 @@
 from rest_framework import serializers
-
-from .models import Translation, User, Address
+from rest_framework.exceptions import ValidationError
+from db.core.serializers import RegisterSerializer
+from .models import Translation, Address, Customer
 from django.db.models import Q
 
-class UserSerializer(serializers.Serializer):
-    repeat_password = serializers.CharField(required=True, style={"input_type": "password"}, write_only=True)
-    password = serializers.CharField(required=True, style={"input_type": "password"}, write_only=True)
-    username = serializers.CharField(required=True)
-    email = serializers.CharField(required=True)
-    first_name = serializers.CharField(required=False)
-    last_name = serializers.CharField(required=False)
+
+class AuthCustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Customer
+        fields = [
+            "username",
+            "password"
+        ]
+        extra_kwargs = {
+            "username": {"validators": []}
+        }
+    
+    def validate(self, attrs):
+        username = attrs.get('username')
+        password = attrs.get('password')
+        if username and password:
+            users = self.Meta.model.objects.filter(
+                Q(username=username) |
+                Q(phone=username) |
+                Q(email=username)
+            )
+            if users.exists():
+                user = users.first()
+                valid = user.check_password(password)
+                if not valid:
+                    raise ValidationError("Password is not correct")
+            else:
+                raise ValidationError("User does not exists")
+        else:
+            msg = _('Must include "username" and "password".')
+            raise serializers.ValidationError(msg, code='authorization')
+
+        attrs['user'] = user
+        return attrs
+
+
+class CustomerRegisterSerializer(RegisterSerializer):
 
     def save(self, request):
         data = self.validated_data
-        user = User(
-            email = data.get("email"),
-            username = data.get("username"),
-            first_name = data.get("first_name", ""),
-            last_name = data.get("last_name", ""),
-            is_active = True
+        password = data.pop("password")
+        data.pop("repeat_password")
+
+        user = Customer(
+            **data,
+            is_active = True,
+            tenant_id = request.tenant_id
         )
-        password = data["password"]
-        repeat_password = data["password"]
-
-        if password != repeat_password:
-            raise serializers.ValidationError({"password": "passwords don't match"})
-
         user.set_password(password)
         try:
-            user.save(request=request)    
+            user.save()
         except:
             raise serializers.ValidationError("User already exists")
         
         return user
 
 
-class TenantSerializer(UserSerializer):
-    company_name = serializers.CharField(required=True)
-
-
-class TranslationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Translation
-        fields = [
-            "lang",
-            "title",
-            "description"
-        ]
-
-
-class AddressSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Address
-        fields = "__all__"
-
-
 class CustomerSerializer(serializers.ModelSerializer):
-    street = serializers.CharField(write_only=True)
-    street_number = serializers.CharField(write_only=True)
-    city = serializers.CharField(write_only=True)
-    country = serializers.CharField(write_only=True)
-    zip = serializers.CharField(write_only=True)
-    address = AddressSerializer(many=False, read_only=True)
-
+    id = serializers.CharField(max_length=128, read_only=True)
     class Meta:
-        model = User
+        model = Customer
         fields = [
+            "id",
             "phone",
-            "name", 
             "username",
-            "account", 
             "email",
+            "account", 
             "street", 
             "street_number",
             "city", 
             "country",
-            "zip",
-            "address"
+            "zip"
         ]
 
     def save(self):
-        address_serializer = AddressSerializer(data=self.validated_data)
-        address_serializer.is_valid()
-        address = address_serializer.save()
-        self.clear_data()
+        self.validated_data["tenant_id"] = self.context["request"].tenant_id
+        return super().save()
 
-        instance = super().save()
-        
-        user_qs = self.Meta.model.objects.filter(
-            Q(name=self.validated_data["name"]) |
-            Q(email=self.validated_data["email"]) |
-            Q(phone=self.validated_data["phone"])
-        )
-        if user_qs.exists():
-            instance = user_qs.first()
-        
-        instance.address = address
-        instance.save()
+    # def save(self):
+    #     address_serializer = AddressSerializer(data=self.validated_data)
+    #     address_serializer.is_valid()
+    #     address = address_serializer.save()
+    #     self.clear_data()
 
-        return instance
+    #     instance = super().save()
         
-    def clear_data(self):
-        model_fields = [f.name for f in self.Meta.model._meta.fields]
-        for x in list(self.validated_data.keys()):
-            if x not in model_fields:
-                self.validated_data.pop(x)
+    #     user_qs = self.Meta.model.objects.filter(
+    #         Q(name=self.validated_data["name"]) |
+    #         Q(email=self.validated_data["email"]) |
+    #         Q(phone=self.validated_data["phone"])
+    #     )
+    #     if user_qs.exists():
+    #         instance = user_qs.first()
+        
+    #     instance.address = address
+    #     instance.save()
+
+    #     return instance
+        
+    # def clear_data(self):
+    #     model_fields = [f.name for f in self.Meta.model._meta.fields]
+    #     for x in list(self.validated_data.keys()):
+    #         if x not in model_fields:
+    #             self.validated_data.pop(x)

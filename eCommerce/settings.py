@@ -43,16 +43,17 @@ INSTALLED_APPS = [
     #local
     'db.core',
     'db.account',
-    'db.orders',
+    'db.orders.apps.OrdersConfig',
     'db.payment',
     'db.product',
     'db.service',
     'db.warehouse',
+    "db.settings",
+    "db.local_settings",
 
     #3-party
     'mptt',
     "rest_framework",
-    "rest_framework.authtoken",
     'django_extensions'
 ]
 
@@ -178,14 +179,15 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-AUTH_USER_MODEL = "account.User" 
+AUTH_USER_MODEL = "account.Customer" 
 
 REST_FRAMEWORK = {
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.BasicAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
-    ],
-    'DEFAULT_FILTER_BACKENDS': [
-        'django_filters.rest_framework.DjangoFilterBackend'
+        'eCommerce.authentication.ExtendedTokenAuthentication',
     ]
 }

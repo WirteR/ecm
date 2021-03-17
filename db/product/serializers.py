@@ -3,20 +3,14 @@ from django.core.files.storage import default_storage
 from django.db.models import Subquery, OuterRef, F
 import simplejson as json
 
-from db.account.serializers import TranslationSerializer
-from db.core.serializers import BaseTranslateSerializer
+from db.helper_serializers import BaseTranslateSerializer
 from db.payment.models import Account
 from db.payment.serializers import AccountSerializer
+from db.serializers import FileSerializer
 
 from db.utils import get_ids
 
 from . import models as product_models
-
-
-class ProductImageSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = product_models.ProductImage
-        fields = ["url", "id", "image"]
 
 
 class ProductCategorySerializer(BaseTranslateSerializer):
@@ -31,18 +25,23 @@ class ProductCategorySerializer(BaseTranslateSerializer):
             "uid",
             "name",
             "description",
-            "user_owner",
             "created_at",
-            "updated_at"
+            "updated_at",
+            "user_owner"
         ]
+        read_only_fields = ["user_owner"]
     
     def get_avatar_url(self, obj):
         if obj.avatar:
             return default_storage.url(str(obj.avatar))
 
+    def save(self):
+        instance = super().save()
+        instance.user_owner = self.context["request"].user.id
+        return instance.save()
+
 
 class AttributeSerializer(BaseTranslateSerializer):
-    translations = TranslationSerializer(many=True, required=False, read_only=True)
        
     class Meta:
         model = product_models.ProductAttribute
@@ -54,8 +53,7 @@ class AttributeSerializer(BaseTranslateSerializer):
             "translations",
             "terms",
             "created_at",
-            "updated_at",
-            "user_owner"
+            "updated_at"
         ]
 
     def is_valid(self, raise_exception=False):
@@ -80,7 +78,7 @@ class TagSerializer(BaseTranslateSerializer):
         model = product_models.ProductTag
         fields = [
             "id", "name", "description",
-            "created_at", "user_owner", "translations"
+            "created_at", "translations"
         ]
         extra_kwargs = {
             "description": {"default": ""}
@@ -88,37 +86,37 @@ class TagSerializer(BaseTranslateSerializer):
 
 
 class QualityDataSerializer(serializers.ModelSerializer):
-    images = serializers.SerializerMethodField(required=False)
-    images_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True)
+    files = FileSerializer(many=True, read_only=True)
+    files_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True)
 
     class Meta:
         model = product_models.QualityData
         fields = [
             "condition", "quality_text", 
-            "quality_description", "images", "images_ids"
+            "quality_description", "files", "files_ids"
         ]
         extra_kwargs = {
             "quality_description": {"default": ""}
         }
     
     def get_images(self, obj):
-        images = obj.iamges.all()
+        images = obj.files.all()
         ls = [default_storage.url(str(obj.image)) for obj in images]
         return ls
 
     def save(self):
-        if images := self.validated_data.get("images_ids"):
-            self.validated_data.pop("images_ids")
+        images = self.validated_data.pop("files_ids")
         quality_qs = product_models.QualityData.objects.filter(
             quality_text=self.validated_data["quality_text"], 
             quality_description=self.validated_data["quality_description"]
         )   
         if quality_qs.exists():
-            instance = quality_qs.first().update(self.validated_data)
+            quality_qs.update(**self.validated_data)
+            instance = quality_qs.first()
         else:
             instance = super().save()
         if images:
-            instance.images.add(*images)
+            instance.files.add(*images)
 
         return instance
 
@@ -136,12 +134,12 @@ class ProductAttributeSerializer(serializers.Serializer):
 
 class ProductSerializer(BaseTranslateSerializer):
     attributes = ProductAttributeSerializer(many=True, required=False)
-    alternate_images = serializers.SerializerMethodField(read_only=True)
+    alternate_images = FileSerializer(many=True, read_only=True)
     exp = QualityDataSerializer(many=True, required=False)
     tags = TagSerializer(many=True, required=False)
     extra_data = ExtraDataSerializer(many=False, required=False)
 
-    images_ids = serializers.ListField(child=serializers.IntegerField(), required=False, write_only=True)
+    files_ids = serializers.ListField(child=serializers.IntegerField(), required=False, write_only=True)
     
     class Meta:
         model = product_models.Product
@@ -157,24 +155,22 @@ class ProductSerializer(BaseTranslateSerializer):
             "alternate_images",
             "extra_data",
             "translations",
-            "images_ids"
+            "files_ids",
+            "user_owner"
         ]
+        read_only_fields = ["user_owner"]
 
-    def get_alternate_images(self, obj):
-        qs = obj.alternate_images.all()
-        ls = [default_storage.url(str(obj.image)) for obj in qs]
-        return ls
+    # def get_alternate_images(self, obj):
+    #     qs = obj.alternate_images.all()
+    #     ls = [default_storage.url(str(obj.image)) for obj in qs]
+    #     return ls
 
     def save(self):
-        if images := self.validated_data.get("images_ids", []):
-            images = self.validated_data.pop("images_ids")
-        if tags := self.validated_data.get("tags", []):
-            tags = self.validated_data.pop("tags")
-        if exp := self.validated_data.get("exp", []):
-            exp = self.validated_data.pop("exp")
-        if extra_data := self.validated_data.get("extra_data"):
-            extra_data = self.validated_data.pop("extra_data")
-
+        images = self.validated_data.pop("files_ids", [])
+        tags = self.validated_data.pop("tags", [])
+        exp = self.validated_data.pop("exp", [])
+        extra_data = self.validated_data.pop("extra_data", {})
+    
         instance = super().save()
 
         if images:
@@ -192,8 +188,9 @@ class ProductSerializer(BaseTranslateSerializer):
             instance.exp.add(*exp_ids)
         if extra_data:
             self.process_extra_data(instance, extra_data)
-
-        return instance
+        
+        instance.user_owner = self.context["request"].user.id
+        return instance.save()
 
     @staticmethod
     def process_extra_data(instance, extra_data):

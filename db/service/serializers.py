@@ -1,24 +1,17 @@
-from rest_framework.serializers import Serializer
-
-from . import models as service_models
-from db.core.serializers import BaseTranslateSerializer
-
-
-class ExpenseFileSerializer(Serializer):
-    pass
+from rest_framework import serializers
+from .models import OrderLog
+import json
 
 
-class ExpesnseSupplierSerializer(Serializer):
-    pass
+class OrderLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderLog
+        fields = [
+            "data"
+        ]
 
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        data = json.loads(data["data"])
+        return data
 
-class ExpenseCategorySerializer(Serializer):
-    pass
-
-
-class ExpenseSerializer(Serializer):
-    pass
-
-
-class ExpenseItemSerializer(Serializer):
-    pass

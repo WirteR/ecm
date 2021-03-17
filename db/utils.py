@@ -16,3 +16,35 @@ def get_ids(model, fields: dict, search_fields: list):
             new_instance = model.objects.create(**field)
             ids.append(new_instance.id)
     return ids
+
+
+def apply_key(container, key, value):
+    def apply(x):
+        x[key] = value
+        return x
+    return map(apply, container)
+
+
+def write_instance(data, serializer_class, many=False, **kwargs):
+    if many:
+        field = kwargs.pop("extra_field", None)
+        value = kwargs.pop("extra_field_value", None)
+        if not field or not value:
+            raise ValidationError("extra field and value must be provided")
+        data = list(apply_key(data, field, value))
+    
+    context = kwargs.pop("context", None)
+    serializer = serializer_class(data=data, many=many, context=context)
+    serializer.is_valid()
+    return serializer.save()
+
+
+def get_user_permission(request, view):
+    model_name = view.model_class.__name__.lower()
+    user_group = request.user.groups
+    if not user_group:
+        return None
+    permissions = user_group.permissions.filter(model_name=model_name)
+    if not permissions:
+        return None
+    return permissions.first()

@@ -10,5 +10,17 @@
         },
         "PASSWORD": "root",
         "SCHEMA_NAME": "test_schema"
+    },
+    "testing": {
+        "HOST": "localhost",
+        "NAME": "pysonet",
+        "PORT": "5432",
+        "USER": "postgres",
+        "ENGINE": "django.db.backends.postgresql_psycopg2",
+        "OPTIONS": {
+            "options": "-c search_path=testing_schema"
+        },
+        "PASSWORD": "root",
+        "SCHEMA_NAME": "testing_schema"
     }
 }

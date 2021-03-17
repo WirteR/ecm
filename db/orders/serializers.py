@@ -1,14 +1,35 @@
 from rest_framework import serializers
 from django.core.files.storage import default_storage
 
-from db.core.serializers import BaseTranslateSerializer
+from db.helper_serializers import BaseTranslateSerializer
 from db.payment.serializers import AccountSerializer, PaymentSerializer
+from db.payment.models import Payment
 from db.product.models import QualityData
 from db.product.serializers import ProductSerializer, QualityDataSerializer
-from db.account.serializers import UserSerializer, CustomerSerializer
+from db.account.serializers import CustomerSerializer
+from db.local_settings.serializers import TaxSerializer
+from db.serializers import FileSerializer
+from db.utils import write_instance
 # from .serializers import ProductUnitSerializer
 
 from . import models as order_models
+
+
+class InvoiceSerializer(BaseTranslateSerializer):
+    file = FileSerializer(many=False, read_only=True)
+    file_id = serializers.IntegerField()
+
+    class Meta:
+        model = order_models.Invoice
+        fields = [
+            "id",
+            "num",
+            "date",
+            "file",
+            "file_id",
+            "translations"
+        ]
+
 
 class ReadOnlySalesSerializer(serializers.ModelSerializer):
     class Meta:
@@ -16,16 +37,18 @@ class ReadOnlySalesSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class SaleInvoiceSerializer(serializers.ModelSerializer):
+class SaleInvoiceSerializer(BaseTranslateSerializer):
     order = ReadOnlySalesSerializer(required=False, write_only=True)
+    file = FileSerializer(many=False)
     class Meta:
         model = order_models.Invoice
         fields = [
             "id",
-            "url",
+            "file",
             "order",
             "date",
-            "num"
+            "num",
+            "translations"
         ]
         read_only_fields = ['id', "url"]
 
@@ -48,21 +71,18 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class TaxSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = order_models.Tax
-        fields = "__all__"
-
-
 class ProductUnitSerializer(BaseTranslateSerializer):
-    product = ProductSerializer(many=False, required=False)
+    product = ProductSerializer(many=False, required=False, read_only=True)
     exp = QualityDataSerializer(many=False, required=False)
 
     vat = TaxSerializer(many=False, read_only=True)
-    vat_id = serializers.IntegerField(required=False, write_only=True)
+    vat_id = serializers.IntegerField(required=False, allow_null=True)
 
     product_id = serializers.IntegerField(required=True)
-    purchase_order_id = serializers.IntegerField(required=False)
+    purchase_order = serializers.PrimaryKeyRelatedField(
+        required=False, 
+        queryset=order_models.PurchaseOrder.objects.all()
+    )
 
     class Meta:
         model = order_models.ProductUnit
@@ -84,23 +104,21 @@ class ProductUnitSerializer(BaseTranslateSerializer):
             "sell_order",
             "sell_order_id",
             "purchase_order",
-            "purchase_order_id"
+            "user_owner"
         ]
-        write_only_fields = ["product_id", "purchase_order_id"]
+        read_only_fields = ["user_owner"]
+        write_only_fields = ["product_id", "vat_id"]
 
     def save(self):
-        if exp := self.validated_data.get("exp", []):
-            exp = self.validated_data.pop("exp")
-
+        exp = self.validated_data.pop("exp", [])
         instance = super().save()
 
         if exp:
-            serializer = QualityDataSerializer(data=exp)
-            serializer.is_valid()
-            exp_instance = serializer.save()
-            instance.exp_id = exp_instance.id
+            exp_instance = write_instance(data=exp, serializer_class=QualityDataSerializer)
+            instance.exp = exp_instance
 
-        return instance
+        instance.user_owner = self.context["request"].user.id
+        return instance.save()
 
 
 class UpdateProductUnitSerializer(serializers.ModelSerializer):
@@ -126,7 +144,7 @@ class UpdateProductUnitSerializer(serializers.ModelSerializer):
                 
 class SellingOrderSerializer(BaseTranslateSerializer):
     buyer = CustomerSerializer(required=False)
-    buyer_id = serializers.IntegerField(required=False, write_only=True)
+    buyer_id = serializers.CharField(required=False, write_only=True)
     debitor = AccountSerializer(read_only=True)
     debitor_id = serializers.IntegerField(required=False, write_only=True)
     payment = PaymentSerializer(read_only=True)
@@ -155,8 +173,10 @@ class SellingOrderSerializer(BaseTranslateSerializer):
             "payment_id",
             "invoice",
             "serialized_products",
-            "products"
+            "products",
+            "user_owner"
         ]
+        read_only_fields = ["user_owner"]
 
     def save(self):
         if buyer := self.validated_data.get("buyer"):
@@ -176,9 +196,8 @@ class SellingOrderSerializer(BaseTranslateSerializer):
                 serializer.update()
                 
         if buyer:
-            serializer = CustomerSerializer(data=buyer)
-            serializer.is_valid()
-            instance.buyer = serializer.save()
+            buyer_instance = write_instance(data=buyer, serializer_class=CustomerSerializer)
+            instance.buyer = buyer_instance
         
         if invoice:
             invoice["order"] = ReadOnlySalesSerializer(instance).data
@@ -186,21 +205,20 @@ class SellingOrderSerializer(BaseTranslateSerializer):
             serializer.is_valid()
             instance.invoice = serializer.save()
         
+        instance.user_owner = self.context["request"].user.id
         return instance.save()
     
 
 class PurchaseOrderSerializer(BaseTranslateSerializer):
     seller = CustomerSerializer(required=False)
-    seller_id = serializers.IntegerField(required=True)
+    seller_id = serializers.CharField(required=False, allow_null=True)
     creditor = AccountSerializer(required=False, read_only=True)
     creditor_id = serializers.IntegerField(required=False)
     payment = PaymentSerializer(required=False, read_only=True)
-    payment_id = serializers.IntegerField(required=False)
+    payment_id = serializers.IntegerField(required=False, allow_null=True)
     serialized_products = ProductUnitSerializer(many=True, required=False)
-    invoice = serializers.SerializerMethodField(read_only=True, required=False)
-    invoice_id = serializers.ListField(child=serializers.IntegerField(), required=False, write_only=True)
-
-    #TODO user_owner
+    invoices = serializers.SerializerMethodField(read_only=True)
+    invoice_ids = serializers.ListField(child=serializers.IntegerField(), required=False, write_only=True, allow_null=True)
 
     class Meta:
         model = order_models.PurchaseOrder
@@ -223,46 +241,120 @@ class PurchaseOrderSerializer(BaseTranslateSerializer):
             "payment_id",
             "serialized_products",
             "translations",
-            "invoice_urls",
-            "invoice_ids"   
+            "invoices",
+            "invoice_ids",
+            "user_owner"
         ]
+        read_only_fields = ["user_owner"]
         write_only_fields = ["payment_id", "creditor_id", "seller_id"]
 
-    def get_invoice_urls(self, obj):
+    def get_invoices(self, obj):
         qs = obj.invoices.all()
-        ls = [default_storage.url(str(obj.image)) for obj in qs]
+        ls = [default_storage.url(str(obj.file)) for obj in qs]
         return   
 
     def save(self):
-        if seller := self.validated_data.get("seller", {}):
-            seller = self.validated_data.pop("seller")
-        if invoice_ids := self.validated_data.get("invoice_ids", []):
-            invoice_ids = self.validated_data.pop("invoice_ids")
-        if serialized := self.validated_data.get("serialized_products"):
-            serialized = self.validated_data.pop("serialized_products")
-        
+        seller = self.validated_data.pop("seller", {})
+        invoice_ids = self.validated_data.pop("invoice_ids", [])
+        serialized = self.validated_data.pop("serialized_products", [])
         instance = super().save()
 
         if invoice_ids:
-            instance.add(*invoice_ids)
+            instance.invoices.add(*invoice_ids)
         if serialized:
             for pu in serialized:
-                pu["purchase_order_id"] = instance.id
-                product_serializer = ProductUnitSerializer(data=pu)
+                pu["purchase_order"] = instance.id
+                product_serializer = ProductUnitSerializer(data=pu, context=self.context)
                 product_serializer.is_valid()
                 product_serializer.save()
+
         if seller:
-            serializer = CustomerSerializer(data=seller)
-            serializer.is_valid()
-            seller_instance = serializer.save()
+            seller_instance = write_instance(data=seller, serializer_class=CustomerSerializer, context=self.context)
             instance.seller = seller_instance
-
-        instance.save()
-        return instance
         
+        instance.user_owner = self.context["request"].user.id
+        return instance.save()
 
-    def clear_data(self):
-        model_fields = self.Meta.model._meta.fields
-        for x in self.validated_data.keys():
-            if x not in model_fields:
-                self.validated_data.pop(x)
+
+class ExpenseSupplierSerializer(BaseTranslateSerializer):
+    account = serializers.StringRelatedField(many=False, read_only=True)
+    account_id = serializers.IntegerField()
+
+    class Meta:
+        model = order_models.ExpenseSupplier
+        fields = [
+            "id",
+            "company_name",
+            "zip",
+            "street",
+            "city",
+            "country",
+            "tax_id",
+            "account",
+            "account_id",
+            "updated_at",
+            "created_at",
+            "translations",
+        ]
+
+
+class ExpenseItemSerializer(BaseTranslateSerializer):
+    account_id = serializers.IntegerField()
+    expense_id = serializers.IntegerField(required=False)
+
+    class Meta:
+        model = order_models.ExpenseItem
+        fields = [
+            "id",
+            "amount",
+            "description",
+            "var_percent",
+            "vat",
+            "expense_id",
+            "account_id",
+        ]
+
+
+class ExpenseSerializer(BaseTranslateSerializer):
+    payment = serializers.PrimaryKeyRelatedField(allow_null=True, queryset=Payment.objects.all())
+    supplier = serializers.PrimaryKeyRelatedField(queryset=order_models.ExpenseSupplier.objects.all())
+    invoice = InvoiceSerializer()
+    expense_items = ExpenseItemSerializer(many=True, required=False)
+
+    class Meta:
+        model = order_models.Expense
+        fields = [
+            "uid",
+            "total_price",
+            "bookkeeping_status",
+            "date",
+            "supplier",
+            "payment",
+            "expense_items",
+            "invoice",
+            "translations",
+            "user_owner"
+        ]     
+        read_only_fields = ["user_owner"]   
+
+    def save(self):
+        if invoice := self.validated_data.get("invoice"):
+            self.validated_data.pop("invoice")
+        if items := self.validated_data.get("expense_items"):
+            self.validated_data.pop("expense_items")
+        
+        instance = super().save()
+
+        if invoice:
+            invoice_instance = write_instance(data=invoice, serializer_class=InvoiceSerializer)
+            instance.invoice_id = invoice_instance.id
+        if items:
+            write_instance(
+                data=items, 
+                serializer_class=ExpenseItemSerializer, 
+                many=True, 
+                extra_field="expense_id", 
+                extra_field_value=instance.id
+            )
+        instance.user_owner = self.context["request"].user.id
+        return instance.save()
