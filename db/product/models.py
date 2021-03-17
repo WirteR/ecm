@@ -1,10 +1,15 @@
 from django.db import models
 from mptt.models import MPTTModel, TreeForeignKey
 
-from db.account.models import Translation, User
-from db.core.models import BaseModel
+from db.account.models import Translation
+from db.helper_models import BaseModel
 from db.payment.models import Account
 # Create your models here.
+
+
+class File(BaseModel):
+    file = models.FileField(upload_to="files/")
+
 
 
 class ProductCategory(MPTTModel):
@@ -16,30 +21,42 @@ class ProductCategory(MPTTModel):
     name = models.CharField(max_length=256)
     description = models.TextField()
     parent = TreeForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children')
-    user_owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
+    user_owner = models.CharField(max_length=128)
+    in_trash = models.BooleanField(null=True, default=False)
 
     created_at = models.DateTimeField(auto_now=True)
     updated_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.uid} | {self.name}" 
+    
+    def save(self, force_insert=False, force_update=False, request=None, *args, **kwargs):
+        if request:
+            self.user_owner = request.user.id
+
+        super().save(force_insert, force_update, *args, **kwargs)
         
 
 class ProductAttribute(BaseModel):
-    user_owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    user_owner = models.CharField(max_length=128)
     translations = models.ManyToManyField(Translation, related_name="attributes")
     
     name = models.CharField(max_length=128)
     description = models.TextField()
     terms = models.TextField(null=True, blank=True)
-    user_owner = models.ForeignKey(User, related_name="attribute", on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
         return self.name
 
+    def save(self, force_insert=False, force_update=False, request=None, *args, **kwargs):
+        if request:
+            self.user_owner = request.user.id
+
+        super().save(force_insert, force_update, *args, **kwargs)
+
 
 class ProductTag(models.Model):
-    user_owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    user_owner = models.CharField(max_length=128)
     translations = models.ManyToManyField(Translation, related_name="tags")
     
     name = models.CharField(max_length=128)
@@ -48,17 +65,19 @@ class ProductTag(models.Model):
 
     def __str__(self):
         return self.name
+    
+    def save(self, force_insert=False, force_update=False, request=None, *args, **kwargs):
+        if request:
+            self.user_owner = request.user.id
 
-
-class ProductImage(BaseModel):
-    image = models.ImageField(upload_to="product-images")
+        super().save(force_insert, force_update, *args, **kwargs)
 
 
 class QualityData(BaseModel):
     condition = models.CharField(max_length=128)
     quality_text = models.CharField(max_length=128)
     quality_description = models.TextField(blank=True, null=True)
-    images = models.ManyToManyField(ProductImage, related_name="quality", blank=True)
+    files = models.ManyToManyField(File, related_name="quality", blank=True)
 
     def __str__(self):
         return self.condition
@@ -100,10 +119,10 @@ class Product(BaseModel):
     category = models.ForeignKey(ProductCategory, related_name="products", on_delete=models.SET_NULL, null=True)
     translations = models.ManyToManyField(Translation, related_name="products")
     tags = models.ManyToManyField(ProductTag, related_name="products", blank=True)
-    user_owner = models.ForeignKey(User, related_name="products", on_delete=models.SET_NULL, null=True)
+    user_owner = models.CharField(max_length=128)
     exp = models.ManyToManyField(QualityData, related_name="products", blank=True)
     extra_data = models.OneToOneField(ProductData, on_delete=models.SET_NULL, null=True)
-    alternate_images = models.ManyToManyField(ProductImage, related_name="products", blank=True)
+    alternate_images = models.ManyToManyField(File, related_name="products", blank=True)
 
     standart_price = models.DecimalField(max_digits=7, decimal_places=2)
     title = models.CharField(max_length=125)
@@ -112,11 +131,16 @@ class Product(BaseModel):
     sku = models.CharField(max_length=125)
     marketplace_sku = models.CharField(max_length=125)
     serialized = models.BooleanField(default=False)
-
-    main_image = models.ImageField(upload_to="product-images")
+    in_trash = models.BooleanField(null=True, default=False)
 
     def __str__(self):
         return f"{self.sku} | {self.title}"
+    
+    def save(self, force_insert=False, force_update=False, request=None, *args, **kwargs):
+        if request:
+            self.user_owner = request.user.id
+
+        super().save(force_insert, force_update, *args, **kwargs)
 
 
 class ProductService(BaseModel):
@@ -128,7 +152,14 @@ class ProductService(BaseModel):
     price_tax = models.DecimalField(max_digits=7, decimal_places=2)
     account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True)
     default_import = models.CharField(max_length=256)
+    user_owner = models.CharField(max_length=128)
 
     def __str__(self):
         return self.name
+
+    def save(self, force_insert=False, force_update=False, request=None, *args, **kwargs):
+        if request:
+            self.user_owner = request.user.id
+
+        super().save(force_insert, force_update, *args, **kwargs)
     

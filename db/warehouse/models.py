@@ -1,7 +1,7 @@
 from django.db import models
 
 from db.account.models import Translation
-from db.core.models import BaseModel
+from db.helper_models import BaseModel
 
 class Warehouse(BaseModel):
     #units = serialized - serializer

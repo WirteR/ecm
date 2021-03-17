@@ -1,90 +1,26 @@
 {
-    "tester": {
+    "test": {
         "HOST": "localhost",
         "NAME": "pysonet",
         "PORT": "5432",
         "USER": "postgres",
         "ENGINE": "django.db.backends.postgresql_psycopg2",
         "OPTIONS": {
-            "options": "-c search_path=tester_schema"
+            "options": "-c search_path=test_schema"
         },
-        "PASSWORD": "root"
+        "PASSWORD": "root",
+        "SCHEMA_NAME": "test_schema"
     },
-    "testerdb": {
+    "testing": {
         "HOST": "localhost",
         "NAME": "pysonet",
         "PORT": "5432",
         "USER": "postgres",
         "ENGINE": "django.db.backends.postgresql_psycopg2",
         "OPTIONS": {
-            "options": "-c search_path=testerdb_schema"
+            "options": "-c search_path=testing_schema"
         },
-        "PASSWORD": "root"
-    },
-    "testerdb1": {
-        "HOST": "localhost",
-        "NAME": "pysonet",
-        "PORT": "5432",
-        "USER": "postgres",
-        "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "OPTIONS": {
-            "options": "-c search_path=testerdb1_schema"
-        },
-        "PASSWORD": "root"
-    },
-    "sterdb1": {
-        "HOST": "localhost",
-        "NAME": "pysonet",
-        "PORT": "5432",
-        "USER": "postgres",
-        "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "OPTIONS": {
-            "options": "-c search_path=sterdb1_schema"
-        },
-        "PASSWORD": "root"
-    },
-    "sterdb": {
-        "HOST": "localhost",
-        "NAME": "pysonet",
-        "PORT": "5432",
-        "USER": "postgres",
-        "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "OPTIONS": {
-            "options": "-c search_path=sterdb_schema"
-        },
-        "PASSWORD": "root"
-    },
-    "sterdb2": {
-        "HOST": "localhost",
-        "NAME": "pysonet",
-        "PORT": "5432",
-        "USER": "postgres",
-        "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "OPTIONS": {
-            "options": "-c search_path=sterdb2_schema"
-        },
-        "PASSWORD": "root"
-    },
-    "ster": {
-        "HOST": "localhost",
-        "NAME": "pysonet",
-        "PORT": "5432",
-        "USER": "postgres",
-        "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "OPTIONS": {
-            "options": "-c search_path=ster_schema"
-        },
-        "PASSWORD": "root"
-    },
-    "new_company": {
-        "HOST": "localhost",
-        "NAME": "pysonet",
-        "PORT": "5432",
-        "USER": "postgres",
-        "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "OPTIONS": {
-            "options": "-c search_path=new_company_schema"
-        },
-        "PASSWORD": "root"
+        "PASSWORD": "root",
+        "SCHEMA_NAME": "testing_schema"
     }
 }

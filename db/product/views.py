@@ -8,22 +8,16 @@ from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
 import simplejson as json
 
-from db.core.views import BaseModelsViewset
+from db.helper_views import BaseModelsViewset, CustomTrashViewSet
+from db.filters import ConditionFilter
 
 from . import models as product_models
 from db.account.models import Translation
 
-from db.account.serializers import TranslationSerializer
 from . import serializers as product_serializers
 
 
-class ImageViewSet(ModelViewSet):
-    model_class = product_models.ProductImage
-    queryset = model_class.objects.all()
-    serializer_class = product_serializers.ProductImageSerializer
-
-
-class CategoryViewSet(BaseModelsViewset):
+class CategoryViewSet(CustomTrashViewSet):
     filter_backends = [OrderingFilter]    
     ordering_fields = ["uid", "name", "created_at"]
     model_class = product_models.ProductCategory
@@ -43,7 +37,7 @@ class TagViewSet(BaseModelsViewset):
     queryset = model_class.objects.all()
 
 
-class ProductViewSet(BaseModelsViewset):
+class ProductViewSet(CustomTrashViewSet):
     serializer_class = product_serializers.ProductSerializer
     models_class = product_models.Product
     queryset = models_class.objects.all()

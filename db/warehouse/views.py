@@ -1,6 +1,6 @@
 from django.shortcuts import render
 
-from db.core.views import BaseModelsViewset
+from db.helper_views import BaseModelsViewset
 from .models import Warehouse
 from .serializers import WarehouseSerializer
 
